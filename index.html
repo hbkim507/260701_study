@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>우리동네 농산물 판매장</title>
+
+  <!-- Leaflet (OpenStreetMap) - API 키 불필요 -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <style>
+    :root {
+      --green: #2e7d32;
+      --green-dark: #1b5e20;
+      --bg: #f5f7f4;
+      --card: #ffffff;
+      --text: #263238;
+      --muted: #6b7770;
+      --border: #e2e8dd;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic",
+        "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--green);
+      color: #fff;
+      padding: 14px 20px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      z-index: 500;
+    }
+    header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+    header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+
+    .layout {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* 사이드바 (목록 + 필터) */
+    .sidebar {
+      width: 360px;
+      max-width: 42vw;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .controls {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .search {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .search:focus { border-color: var(--green); }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .chip {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip:hover { border-color: var(--green); }
+    .chip.active {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+
+    .locate-btn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 9px;
+      border: 1px solid var(--green);
+      background: #fff;
+      color: var(--green);
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .locate-btn:hover { background: #eef6ee; }
+
+    .count {
+      padding: 8px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .list {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .item {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .item:hover { background: #f2f7f1; }
+    .item.active { background: #e6f2e6; border-left: 4px solid var(--green); padding-left: 10px; }
+    .item h3 { margin: 0 0 4px; font-size: 15px; }
+    .item .addr { font-size: 13px; color: var(--muted); margin: 2px 0; }
+    .item .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag {
+      font-size: 11px;
+      background: #eef2ec;
+      color: var(--green-dark);
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+    .item .meta { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* 지도 */
+    #map { flex: 1; min-height: 0; }
+
+    .popup-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--green-dark); }
+    .popup-addr { font-size: 13px; color: #444; margin: 2px 0; }
+    .popup-tags { margin-top: 6px; }
+    .popup-link {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--green);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    @media (max-width: 720px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; max-width: 100%; height: 45%; border-right: none; border-bottom: 1px solid var(--border); }
+      #map { height: 55%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🥬 우리동네 농산물 판매장</h1>
+    <p>채소 · 달걀 · 과일 등 신선한 지역 농산물을 파는 직매장을 지도에서 찾아보세요.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="controls">
+        <input
+          id="search"
+          class="search"
+          type="text"
+          placeholder="판매장 이름·지역·품목 검색 (예: 달걀, 강남)"
+        />
+        <div class="filters" id="filters"></div>
+        <button class="locate-btn" id="locateBtn">📍 내 위치에서 가까운 순으로 보기</button>
+      </div>
+      <div class="count" id="count"></div>
+      <div class="list" id="list"></div>
+    </aside>
+
+    <div id="map"></div>
+  </div>
+
+  <script>
+    // ── 판매장 데이터 (예시) ─────────────────────────────
+    // 실제 운영 데이터로 교체해서 사용하세요.
+    const MARKETS = [
+      {
+        name: "가락몰 농산물 직판장",
+        address: "서울 송파구 양재대로 932",
+        lat: 37.4939, lng: 127.1105,
+        items: ["채소", "과일", "달걀"],
+        hours: "05:00 ~ 22:00",
+        phone: "02-3435-1000"
+      },
+      {
+        name: "강동 로컬푸드 직매장",
+        address: "서울 강동구 고덕로 262",
+        lat: 37.5559, lng: 127.1543,
+        items: ["채소", "달걀", "쌀"],
+        hours: "09:00 ~ 20:00",
+        phone: "02-1544-0000"
+      },
+      {
+        name: "양재 하나로마트 신선코너",
+        address: "서울 서초구 강남대로 27",
+        lat: 37.4699, lng: 127.0389,
+        items: ["채소", "과일", "달걀", "육류"],
+        hours: "09:00 ~ 21:00",
+        phone: "02-3498-1000"
+      },
+      {
+        name: "은평 로컬푸드 직매장",
+        address: "서울 은평구 통일로 1050",
+        lat: 37.6360, lng: 126.9188,
+        items: ["채소", "달걀", "잡곡"],
+        hours: "09:00 ~ 19:00",
+        phone: "02-380-0000"
+      },
+      {
+        name: "수원 팔달 농산물 직거래장터",
+        address: "경기 수원시 팔달구 정조로 800",
+        lat: 37.2820, lng: 127.0170,
+        items: ["채소", "과일", "달걀"],
+        hours: "08:00 ~ 20:00",
+        phone: "031-228-0000"
+      },
+      {
+        name: "성남 로컬푸드 직매장 (모란)",
+        address: "경기 성남시 중원구 성남대로 997",
+        lat: 37.4322, lng: 127.1290,
+        items: ["채소", "달걀", "버섯"],
+        hours: "09:00 ~ 20:00",
+        phone: "031-729-0000"
+      },
+      {
+        name: "고양 원당 농협 로컬푸드",
+        address: "경기 고양시 덕양구 화중로 104",
+        lat: 37.6540, lng: 126.8320,
+        items: ["채소", "과일", "달걀", "쌀"],
+        hours: "09:00 ~ 20:00",
+        phone: "031-968-0000"
+      },
+      {
+        name: "인천 계양 로컬푸드 직매장",
+        address: "인천 계양구 계양대로 100",
+        lat: 37.5370, lng: 126.7380,
+        items: ["채소", "달걀", "잡곡"],
+        hours: "09:00 ~ 19:00",
+        phone: "032-500-0000"
+      },
+      {
+        name: "대전 유성 로컬푸드 직매장",
+        address: "대전 유성구 유성대로 500",
+        lat: 36.3620, lng: 127.3560,
+        items: ["채소", "과일", "달걀"],
+        hours: "09:00 ~ 20:00",
+        phone: "042-600-0000"
+      },
+      {
+        name: "청주 농산물 도매시장 직판장",
+        address: "충북 청주시 흥덕구 풍산로 15",
+        lat: 36.6290, lng: 127.4200,
+        items: ["채소", "과일", "달걀", "육류"],
+        hours: "06:00 ~ 20:00",
+        phone: "043-200-0000"
+      }
+    ];
+
+    // ── 지도 초기화 ─────────────────────────────
+    const map = L.map("map").setView([37.55, 127.0], 8);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자'
+    }).addTo(map);
+
+    // 판매장 아이콘 (초록 원)
+    const marketIcon = L.divIcon({
+      className: "",
+      html:
+        '<div style="width:26px;height:26px;background:#2e7d32;border:3px solid #fff;' +
+        'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;' +
+        'align-items:center;justify-content:center;font-size:13px;">🥬</div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+      popupAnchor: [0, -14]
+    });
+
+    // ── 상태 & 마커 ─────────────────────────────
+    let activeCategory = "전체";
+    let searchTerm = "";
+    let userLatLng = null;
+    const markers = new Map(); // index -> L.marker
+
+    const listEl = document.getElementById("list");
+    const countEl = document.getElementById("count");
+    const filtersEl = document.getElementById("filters");
+    const searchEl = document.getElementById("search");
+
+    function popupHtml(m) {
+      const tags = m.items
+        .map(t => '<span class="tag">' + t + "</span>")
+        .join(" ");
+      const query = encodeURIComponent(m.name + " " + m.address);
+      return (
+        '<div class="popup-title">' + m.name + "</div>" +
+        '<div class="popup-addr">📍 ' + m.address + "</div>" +
+        '<div class="popup-addr">🕒 ' + m.hours + "</div>" +
+        '<div class="popup-addr">☎ ' + m.phone + "</div>" +
+        '<div class="popup-tags">' + tags + "</div>" +
+        '<a class="popup-link" target="_blank" rel="noopener" ' +
+        'href="https://map.kakao.com/?q=' + query + '">길찾기 / 지도에서 보기 →</a>'
+      );
+    }
+
+    MARKETS.forEach((m, i) => {
+      const marker = L.marker([m.lat, m.lng], { icon: marketIcon })
+        .addTo(map)
+        .bindPopup(popupHtml(m));
+      marker.on("click", () => highlightItem(i));
+      markers.set(i, marker);
+    });
+
+    // ── 카테고리 필터 칩 ─────────────────────────────
+    const allCats = ["전체", ...new Set(MARKETS.flatMap(m => m.items))];
+    allCats.forEach(cat => {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (cat === "전체" ? " active" : "");
+      chip.textContent = cat;
+      chip.onclick = () => {
+        activeCategory = cat;
+        [...filtersEl.children].forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        render();
+      };
+      filtersEl.appendChild(chip);
+    });
+
+    // ── 거리 계산 (하버사인) ─────────────────────────────
+    function distanceKm(a, b) {
+      const R = 6371;
+      const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+      const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+      const s =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((a.lat * Math.PI) / 180) *
+          Math.cos((b.lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+    }
+
+    // ── 목록 렌더링 ─────────────────────────────
+    function getFiltered() {
+      let rows = MARKETS.map((m, i) => ({ m, i }));
+
+      if (activeCategory !== "전체") {
+        rows = rows.filter(r => r.m.items.includes(activeCategory));
+      }
+      if (searchTerm) {
+        const t = searchTerm.toLowerCase();
+        rows = rows.filter(
+          r =>
+            r.m.name.toLowerCase().includes(t) ||
+            r.m.address.toLowerCase().includes(t) ||
+            r.m.items.some(it => it.toLowerCase().includes(t))
+        );
+      }
+      if (userLatLng) {
+        rows.forEach(r => {
+          r.dist = distanceKm(userLatLng, { lat: r.m.lat, lng: r.m.lng });
+        });
+        rows.sort((a, b) => a.dist - b.dist);
+      }
+      return rows;
+    }
+
+    function render() {
+      const rows = getFiltered();
+      countEl.textContent = "총 " + rows.length + "곳의 판매장";
+      listEl.innerHTML = "";
+
+      if (rows.length === 0) {
+        listEl.innerHTML =
+          '<div style="padding:24px;text-align:center;color:#6b7770;">' +
+          "검색 결과가 없습니다.</div>";
+        return;
+      }
+
+      rows.forEach(({ m, i, dist }) => {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.dataset.idx = i;
+        const tags = m.items
+          .map(t => '<span class="tag">' + t + "</span>")
+          .join(" ");
+        const distStr =
+          dist != null
+            ? '<span style="color:#2e7d32;font-weight:600;"> · ' +
+              dist.toFixed(1) +
+              "km</span>"
+            : "";
+        div.innerHTML =
+          "<h3>" + m.name + "</h3>" +
+          '<div class="addr">📍 ' + m.address + distStr + "</div>" +
+          '<div class="tags">' + tags + "</div>" +
+          '<div class="meta">🕒 ' + m.hours + " · ☎ " + m.phone + "</div>";
+        div.onclick = () => {
+          map.setView([m.lat, m.lng], 14, { animate: true });
+          markers.get(i).openPopup();
+          highlightItem(i);
+        };
+        listEl.appendChild(div);
+      });
+    }
+
+    function highlightItem(idx) {
+      [...listEl.children].forEach(c => c.classList.remove("active"));
+      const el = listEl.querySelector('[data-idx="' + idx + '"]');
+      if (el) {
+        el.classList.add("active");
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+
+    // ── 검색 입력 ─────────────────────────────
+    searchEl.addEventListener("input", e => {
+      searchTerm = e.target.value.trim();
+      render();
+    });
+
+    // ── 내 위치 ─────────────────────────────
+    document.getElementById("locateBtn").onclick = () => {
+      if (!navigator.geolocation) {
+        alert("이 브라우저에서는 위치 기능을 지원하지 않습니다.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          L.circleMarker([userLatLng.lat, userLatLng.lng], {
+            radius: 9,
+            color: "#1565c0",
+            fillColor: "#1e88e5",
+            fillOpacity: 0.9
+          })
+            .addTo(map)
+            .bindPopup("현재 내 위치")
+            .openPopup();
+          map.setView([userLatLng.lat, userLatLng.lng], 11);
+          render();
+        },
+        () => alert("위치를 가져올 수 없습니다. 위치 권한을 확인해 주세요.")
+      );
+    };
+
+    // 첫 렌더
+    render();
+  </script>
+</body>
+</html>
