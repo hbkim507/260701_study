@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hbkim507.github.io/260701_study/sitemap.xml

@@ -3,451 +3,358 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>우리동네 농산물 판매장</title>
+  <title>우리동네 농산물 판매장 | 채소·달걀·과일 직매장 지도와 제철 가이드</title>
+  <meta name="description" content="채소·달걀·과일 등 신선한 지역 농산물을 파는 직매장을 지도에서 찾고, 제철 농산물 달력과 보관법, AI 채소 판별기까지 한 곳에서 제공하는 농산물 안내 서비스입니다." />
+  <meta name="keywords" content="농산물 판매장, 로컬푸드 직매장, 채소, 달걀, 과일, 제철 농산물, 채소 보관법, 농산물 직거래" />
+  <meta name="author" content="우리동네 농산물" />
+  <link rel="canonical" href="https://hbkim507.github.io/260701_study/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="우리동네 농산물 판매장" />
+  <meta property="og:description" content="신선한 지역 농산물 직매장을 지도에서 찾고 제철 정보와 보관법을 확인하세요." />
+  <meta property="og:url" content="https://hbkim507.github.io/260701_study/" />
+  <meta property="og:locale" content="ko_KR" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🥬%3C/text%3E%3C/svg%3E" />
 
   <!-- Google AdSense (계정 인증 + 자동 광고) -->
   <meta name="google-adsense-account" content="ca-pub-1496626069535256" />
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1496626069535256"
      crossorigin="anonymous"></script>
 
-  <!-- Leaflet (OpenStreetMap) - API 키 불필요 -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <!-- Teachable Machine 채소 분류 모델 (TensorFlow.js) -->
+  <!-- Teachable Machine 채소 분류 모델 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
-  <style>
-    :root {
-      --green: #2e7d32;
-      --green-dark: #1b5e20;
-      --bg: #f5f7f4;
-      --card: #ffffff;
-      --text: #263238;
-      --muted: #6b7770;
-      --border: #e2e8dd;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic",
-        "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-      color: var(--text);
-      background: var(--bg);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      background: var(--green);
-      color: #fff;
-      padding: 14px 20px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-      z-index: 500;
-    }
-    header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-    header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
-
-    .layout {
-      height: 72vh;
-      min-height: 420px;
-      display: flex;
-    }
-
-    /* 사이드바 (목록 + 필터) */
-    .sidebar {
-      width: 360px;
-      max-width: 42vw;
-      background: var(--card);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .controls {
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-    .search {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 14px;
-      outline: none;
-    }
-    .search:focus { border-color: var(--green); }
-
-    .filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 10px;
-    }
-    .chip {
-      border: 1px solid var(--border);
-      background: #fff;
-      color: var(--muted);
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .chip:hover { border-color: var(--green); }
-    .chip.active {
-      background: var(--green);
-      border-color: var(--green);
-      color: #fff;
-    }
-
-    .locate-btn {
-      margin-top: 10px;
-      width: 100%;
-      padding: 9px;
-      border: 1px solid var(--green);
-      background: #fff;
-      color: var(--green);
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .locate-btn:hover { background: #eef6ee; }
-
-    .count {
-      padding: 8px 14px;
-      font-size: 12px;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .list {
-      overflow-y: auto;
-      flex: 1;
-      min-height: 0;
-    }
-    .item {
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.12s;
-    }
-    .item:hover { background: #f2f7f1; }
-    .item.active { background: #e6f2e6; border-left: 4px solid var(--green); padding-left: 10px; }
-    .item h3 { margin: 0 0 4px; font-size: 15px; }
-    .item .addr { font-size: 13px; color: var(--muted); margin: 2px 0; }
-    .item .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-    .tag {
-      font-size: 11px;
-      background: #eef2ec;
-      color: var(--green-dark);
-      border-radius: 4px;
-      padding: 2px 7px;
-    }
-    .item .meta { font-size: 12px; color: var(--muted); margin-top: 6px; }
-
-    /* 지도 */
-    #map { flex: 1; min-height: 0; }
-
-    .popup-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--green-dark); }
-    .popup-addr { font-size: 13px; color: #444; margin: 2px 0; }
-    .popup-tags { margin-top: 6px; }
-    .popup-link {
-      display: inline-block;
-      margin-top: 8px;
-      font-size: 13px;
-      color: var(--green);
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    /* ── AI 채소 판별 섹션 ── */
-    .ai-section {
-      background: linear-gradient(180deg, #f0f6ee 0%, #e6f0e2 100%);
-      border-top: 3px solid var(--green);
-      padding: 34px 20px 52px;
-    }
-    .ai-inner { max-width: 960px; margin: 0 auto; }
-    .ai-section h2 { margin: 0 0 6px; font-size: 22px; color: var(--green-dark); }
-    .ai-desc { margin: 0 0 18px; color: #4a5a4a; font-size: 14px; line-height: 1.6; }
-    .ai-desc small { color: var(--muted); }
-
-    .ai-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-    .ai-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: var(--green); color: #fff; border: none;
-      padding: 11px 18px; border-radius: 10px; font-size: 14px;
-      font-weight: 600; cursor: pointer;
-    }
-    .ai-btn:hover { background: var(--green-dark); }
-    .ai-btn-outline { background: #fff; color: var(--green); border: 1px solid var(--green); }
-    .ai-btn-outline:hover { background: #eef6ee; }
-    .ai-btn-ghost { background: #fff; color: #b00020; border: 1px solid #e0b4b4; }
-
-    .ai-status { font-size: 13px; color: var(--muted); margin-bottom: 16px; min-height: 18px; }
-
-    .ai-stage { display: flex; gap: 20px; flex-wrap: wrap; }
-    .ai-preview {
-      flex: 1 1 320px; min-width: 260px; max-width: 380px; aspect-ratio: 1 / 1;
-      background: #fff; border: 1px solid var(--border); border-radius: 14px;
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
-    }
-    .ai-placeholder { color: #9aa89a; font-size: 14px; text-align: center; padding: 20px; }
-    .ai-img, .ai-preview canvas, .ai-preview video {
-      width: 100%; height: 100%; object-fit: cover; display: block;
-    }
-
-    .ai-result { flex: 1 1 320px; min-width: 260px; }
-    .ai-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
-    .bar-row { font-size: 13px; }
-    .bar-label { display: flex; justify-content: space-between; margin-bottom: 3px; color: #3a463a; }
-    .bar-track { background: #dfe7db; border-radius: 6px; height: 12px; overflow: hidden; }
-    .bar-fill { background: var(--green); height: 100%; width: 0; transition: width 0.25s; border-radius: 6px; }
-    .bar-row.top .bar-fill { background: #f57c00; }
-    .bar-row.top .bar-label { font-weight: 700; color: var(--green-dark); }
-
-    .ai-explain {
-      background: #fff; border: 1px solid var(--border); border-radius: 14px;
-      padding: 16px 18px; min-height: 60px;
-    }
-    .ai-explain.empty { color: #9aa89a; font-size: 14px; }
-    .ai-explain h3 { margin: 0 0 8px; font-size: 18px; color: var(--green-dark); }
-    .ai-explain p { margin: 0 0 10px; font-size: 14px; line-height: 1.65; color: #3a463a; }
-    .ai-explain ul { margin: 0; padding-left: 18px; font-size: 13px; color: #4a5a4a; line-height: 1.7; }
-
-    @media (max-width: 720px) {
-      .layout { flex-direction: column; }
-      .sidebar { width: 100%; max-width: 100%; height: 45%; border-right: none; border-bottom: 1px solid var(--border); }
-      #map { height: 55%; }
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <h1>🥬 우리동네 농산물 판매장</h1>
-    <p>채소 · 달걀 · 과일 등 신선한 지역 농산물을 파는 직매장을 지도에서 찾아보세요.</p>
+  <header class="site-header">
+    <div class="nav-wrap">
+      <a class="brand" href="index.html">🥬 우리동네 농산물</a>
+      <nav class="nav">
+        <a href="index.html" class="active">홈</a>
+        <a href="index.html#map-section">판매장 지도</a>
+        <a href="index.html#guide">채소 도감</a>
+        <a href="index.html#calendar">제철 달력</a>
+        <a href="index.html#ai">AI 판별기</a>
+        <a href="about.html">소개</a>
+      </nav>
+    </div>
   </header>
 
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="controls">
-        <input
-          id="search"
-          class="search"
-          type="text"
-          placeholder="판매장 이름·지역·품목 검색 (예: 달걀, 강남)"
-        />
-        <div class="filters" id="filters"></div>
-        <button class="locate-btn" id="locateBtn">📍 내 위치에서 가까운 순으로 보기</button>
-      </div>
-      <div class="count" id="count"></div>
-      <div class="list" id="list"></div>
-    </aside>
-
-    <div id="map"></div>
-  </div>
-
-  <!-- ── 광고 영역 (수동 광고 단위) ──
-       AdSense 대시보드에서 '디스플레이 광고' 단위를 만든 뒤, 아래 data-ad-slot 값을
-       발급받은 슬롯 ID로 바꾸고 이 주석(<!-- , -->)을 제거하면 광고가 표시됩니다.
-       ※ 자동 광고를 켠 경우에는 이 블록 없이도 Google이 알아서 광고를 배치합니다.
-  <div style="max-width: 960px; margin: 0 auto; padding: 16px 20px; text-align: center;">
-    <ins class="adsbygoogle"
-         style="display:block"
-         data-ad-client="ca-pub-1496626069535256"
-         data-ad-slot="여기에_광고단위_슬롯ID"
-         data-ad-format="auto"
-         data-full-width-responsive="true"></ins>
-    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  </div>
-  -->
-
-  <!-- ── AI 채소 판별 섹션 ── -->
-  <section class="ai-section" id="ai">
-    <div class="ai-inner">
-      <h2>🥕 채소 알아보기 — AI 판별기</h2>
-      <p class="ai-desc">
-        채소(또는 달걀) 사진을 올리거나 웹캠에 비추면 AI가 무엇인지 알아맞히고 설명해 드려요.<br />
-        <small>인식 가능: 당근 · 양파 · 오이 · 호박 · 달걀 &nbsp;|&nbsp; Teachable Machine 모델 사용</small>
-      </p>
-
-      <div class="ai-controls">
-        <button id="btnWebcam" class="ai-btn">📷 웹캠으로 인식</button>
-        <label class="ai-btn ai-btn-outline">
-          🖼️ 사진 업로드
-          <input type="file" id="fileInput" accept="image/*" hidden />
-        </label>
-        <button id="btnStop" class="ai-btn ai-btn-ghost" hidden>■ 웹캠 끄기</button>
-      </div>
-
-      <div id="aiStatus" class="ai-status">모델을 준비하는 중…</div>
-
-      <div class="ai-stage">
-        <div class="ai-preview" id="preview">
-          <div class="ai-placeholder">여기에 사진/영상이 표시됩니다</div>
-        </div>
-        <div class="ai-result">
-          <div id="bars" class="ai-bars"></div>
-          <div id="explain" class="ai-explain empty">사진을 인식하면 여기에 설명이 표시됩니다.</div>
-        </div>
+  <section class="hero">
+    <div class="hero-inner">
+      <h1>신선한 지역 농산물,<br />가까운 직매장에서 만나세요</h1>
+      <p>채소·달걀·과일을 파는 우리동네 농산물 직판장을 지도에서 찾고, 제철 정보·보관법·손질 팁까지 한 번에 확인하세요. 사진 한 장이면 AI가 채소를 알아맞히고 설명해 드립니다.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#map-section">📍 판매장 지도 보기</a>
+        <a class="btn btn-outline" href="#guide">🥕 채소 도감 보기</a>
       </div>
     </div>
   </section>
 
+  <main>
+    <!-- 판매장 지도 -->
+    <section class="section" id="map-section">
+      <div class="section-inner">
+        <span class="eyebrow">MAP</span>
+        <h2>농산물 판매장 지도</h2>
+        <p class="lead">지역·품목으로 검색하고, 마커를 눌러 영업시간·연락처·취급 품목을 확인하세요. ‘내 위치’를 켜면 가까운 순으로 정렬됩니다.</p>
+        <div class="layout">
+          <aside class="sidebar">
+            <div class="controls">
+              <input id="search" class="search" type="text" placeholder="판매장 이름·지역·품목 검색 (예: 달걀, 강남)" />
+              <div class="filters" id="filters"></div>
+              <button class="locate-btn" id="locateBtn">📍 내 위치에서 가까운 순으로 보기</button>
+            </div>
+            <div class="count" id="count"></div>
+            <div class="list" id="list"></div>
+          </aside>
+          <div id="map"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 광고 영역 (수동 광고 단위) ──
+         AdSense 대시보드에서 '디스플레이 광고' 단위를 만든 뒤, 아래 data-ad-slot 값을
+         발급받은 슬롯 ID로 바꾸고 이 주석(<!-- , -->)을 제거하면 광고가 표시됩니다.
+         ※ 자동 광고를 켠 경우에는 이 블록 없이도 Google이 알아서 광고를 배치합니다.
+    <div class="ad-slot">
+      <div class="ad-label">ADVERTISEMENT</div>
+      <ins class="adsbygoogle" style="display:block"
+           data-ad-client="ca-pub-1496626069535256"
+           data-ad-slot="여기에_광고단위_슬롯ID"
+           data-ad-format="auto" data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    -->
+
+    <!-- 채소·달걀 도감 -->
+    <section class="section" id="guide">
+      <div class="section-inner">
+        <span class="eyebrow">GUIDE</span>
+        <h2>채소·달걀 도감 — 고르는 법부터 보관까지</h2>
+        <p class="lead">직매장에서 자주 만나는 다섯 가지 신선식품의 특징과 영양, 좋은 것을 고르는 요령, 오래 두고 먹는 보관법을 정리했습니다.</p>
+        <div class="card-grid">
+
+          <article class="veg-card">
+            <div class="veg-head"><span class="veg-emoji">🥕</span><div><h3>당근</h3><div class="veg-sub">Carrot · 뿌리채소</div></div></div>
+            <p>미나리과의 뿌리채소로, 주황빛을 내는 <strong>베타카로틴</strong>이 대표 영양소입니다. 아삭한 식감과 은은한 단맛 덕분에 생식·볶음·조림·주스까지 두루 쓰입니다.</p>
+            <dl>
+              <dt>영양·효능</dt><dd>베타카로틴이 체내에서 비타민A로 전환돼 눈 건강·피부·면역에 도움을 주며, 식이섬유와 칼륨도 풍부합니다.</dd>
+              <dt>고르는 법</dt><dd>표면이 매끈하고 단단하며 주황색이 선명한 것. 잔뿌리와 갈라짐이 적고 묵직한 것이 좋습니다.</dd>
+              <dt>보관법</dt><dd>흙을 털어 신문지에 싸 세워서 냉장(0~5℃). 씻으면 쉽게 무르므로 먹기 직전에 세척하세요.</dd>
+              <dt>활용 팁</dt><dd>기름과 함께 볶으면 지용성 베타카로틴 흡수율이 높아집니다.</dd>
+            </dl>
+          </article>
+
+          <article class="veg-card">
+            <div class="veg-head"><span class="veg-emoji">🧅</span><div><h3>양파</h3><div class="veg-sub">Onion · 인경채소</div></div></div>
+            <p>특유의 매운맛과 향을 내는 <strong>알리신·퀘르세틴</strong>이 풍부합니다. 익히면 매운맛이 사라지고 단맛이 올라와 거의 모든 요리의 기본 재료가 됩니다.</p>
+            <dl>
+              <dt>영양·효능</dt><dd>알리신은 혈액순환, 퀘르세틴은 항산화에 도움을 준다고 알려져 있습니다.</dd>
+              <dt>고르는 법</dt><dd>껍질이 잘 마르고 윤기가 있으며, 눌렀을 때 단단하고 싹이 나지 않은 것을 고르세요.</dd>
+              <dt>보관법</dt><dd>바람이 잘 통하는 서늘하고 건조한 곳에 망에 담아 매달아 둡니다. 자른 것은 밀폐해 냉장하세요.</dd>
+              <dt>활용 팁</dt><dd>약한 불에서 오래 볶으면 갈색으로 변하며 깊은 단맛(캐러멜라이즈)이 납니다.</dd>
+            </dl>
+          </article>
+
+          <article class="veg-card">
+            <div class="veg-head"><span class="veg-emoji">🥒</span><div><h3>오이</h3><div class="veg-sub">Cucumber · 열매채소</div></div></div>
+            <p>수분이 약 <strong>95%</strong>로 시원하고 칼로리가 낮아 여름철 수분 보충에 좋습니다. 생채·냉국·피클 등으로 즐겨 먹습니다.</p>
+            <dl>
+              <dt>영양·효능</dt><dd>칼륨이 풍부해 나트륨 배출과 붓기 완화에 도움을 줍니다.</dd>
+              <dt>고르는 법</dt><dd>굵기가 고르고 단단하며, 가시가 살아 있고 꼭지가 싱싱한 것이 신선합니다.</dd>
+              <dt>보관법</dt><dd>물기를 닦아 키친타월로 감싼 뒤 비닐에 넣어 냉장. 저온에 약하니 너무 차갑지 않게 보관하세요.</dd>
+              <dt>활용 팁</dt><dd>소금으로 살짝 절이면 아삭함이 오래 유지됩니다.</dd>
+            </dl>
+          </article>
+
+          <article class="veg-card">
+            <div class="veg-head"><span class="veg-emoji">🎃</span><div><h3>호박</h3><div class="veg-sub">Squash · 열매채소</div></div></div>
+            <p><strong>베타카로틴</strong>과 식이섬유가 풍부합니다. 애호박은 부드럽고 담백해 볶음·전에, 단호박·늙은호박은 단맛이 강해 죽·찜에 잘 어울립니다.</p>
+            <dl>
+              <dt>영양·효능</dt><dd>소화가 잘돼 이유식·회복식으로도 좋고, 식이섬유가 포만감을 줍니다.</dd>
+              <dt>고르는 법</dt><dd>애호박은 곧고 상처 없이 탄력 있는 것, 단호박은 묵직하고 껍질이 단단한 것이 좋습니다.</dd>
+              <dt>보관법</dt><dd>통째로는 서늘한 실온, 자른 것은 씨를 빼고 랩으로 감싸 냉장하세요.</dd>
+              <dt>활용 팁</dt><dd>껍질째 조리하면 영양 손실을 줄일 수 있습니다.</dd>
+            </dl>
+          </article>
+
+          <article class="veg-card">
+            <div class="veg-head"><span class="veg-emoji">🥚</span><div><h3>달걀</h3><div class="veg-sub">Egg · 신선 축산물</div></div></div>
+            <p>채소는 아니지만 직매장에서 함께 파는 대표 신선식품입니다. 필수아미노산을 고루 갖춘 <strong>완전식품</strong>으로 단백질이 풍부합니다.</p>
+            <dl>
+              <dt>영양·효능</dt><dd>흰자에는 양질의 단백질, 노른자에는 비타민·무기질과 콜린이 들어 있습니다.</dd>
+              <dt>고르는 법</dt><dd>껍질이 까슬까슬하고 금이 없는 것. 산란일자와 등급 표시를 확인하세요.</dd>
+              <dt>보관법</dt><dd>뾰족한 쪽을 아래로 하여 냉장실 안쪽에 보관합니다. 물에 넣어 가라앉으면 신선한 달걀입니다.</dd>
+              <dt>활용 팁</dt><dd>실온에 잠깐 두었다 삶으면 껍질이 잘 벗겨집니다.</dd>
+            </dl>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 제철 농산물 달력 -->
+    <section class="section" id="calendar">
+      <div class="section-inner">
+        <span class="eyebrow">SEASON</span>
+        <h2>제철 농산물 달력</h2>
+        <p class="lead">제철에 난 농산물은 맛과 영양이 가장 좋고 가격도 합리적입니다. 월별 대표 제철 채소·과일을 참고해 장을 봐 보세요. (지역·기후에 따라 시기는 다소 달라질 수 있습니다.)</p>
+        <div class="table-wrap">
+          <table class="calendar">
+            <thead><tr><th>월</th><th>제철 채소</th><th>제철 과일</th></tr></thead>
+            <tbody>
+              <tr><td class="month">1월</td><td>시금치, 대파, 우엉, 연근</td><td>귤, 사과, 딸기</td></tr>
+              <tr><td class="month">2월</td><td>봄동, 냉이, 시금치, 미나리</td><td>딸기, 한라봉</td></tr>
+              <tr><td class="month">3월</td><td>달래, 냉이, 봄동, 두릅</td><td>딸기, 한라봉</td></tr>
+              <tr><td class="month">4월</td><td>두릅, 미나리, 취나물, 양배추</td><td>딸기</td></tr>
+              <tr><td class="month">5월</td><td>양파, 마늘, 완두콩, 아스파라거스</td><td>참외, 앵두</td></tr>
+              <tr><td class="month">6월</td><td>오이, 감자, 마늘, 양파</td><td>참외, 자두, 매실</td></tr>
+              <tr><td class="month">7월</td><td>애호박, 가지, 열무, 옥수수</td><td>수박, 복숭아, 자두</td></tr>
+              <tr><td class="month">8월</td><td>오이, 가지, 풋고추, 옥수수</td><td>포도, 복숭아, 수박</td></tr>
+              <tr><td class="month">9월</td><td>고구마, 토란, 버섯, 무</td><td>사과, 배, 포도</td></tr>
+              <tr><td class="month">10월</td><td>무, 배추, 당근, 단호박</td><td>사과, 배, 감, 대추</td></tr>
+              <tr><td class="month">11월</td><td>배추, 무, 시금치, 연근</td><td>사과, 감, 귤</td></tr>
+              <tr><td class="month">12월</td><td>시금치, 대파, 우엉, 콜라비</td><td>귤, 사과</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 로컬푸드 직매장 이용 가이드 -->
+    <section class="section" id="localfood">
+      <div class="section-inner prose">
+        <span class="eyebrow">TIP</span>
+        <h2>로컬푸드 직매장, 200% 활용하기</h2>
+        <p><strong>로컬푸드 직매장</strong>은 지역에서 재배한 농산물을 생산자가 직접 진열·판매하는 곳입니다. 유통 단계가 짧아 수확한 지 하루 이틀 안에 매대에 오르기 때문에 신선도가 높고, 중간 마진이 줄어 합리적인 가격에 살 수 있습니다.</p>
+        <h3>직매장의 장점</h3>
+        <ul>
+          <li><strong>신선함</strong> — 아침에 수확한 채소를 그날 만날 수 있습니다.</li>
+          <li><strong>합리적 가격</strong> — 유통 단계가 짧아 가격 거품이 적습니다.</li>
+          <li><strong>생산자 이력</strong> — 포장에 재배 농가 이름이 적혀 있어 믿고 살 수 있습니다.</li>
+          <li><strong>지역경제 기여</strong> — 소비가 곧 우리 지역 농가의 소득으로 이어집니다.</li>
+        </ul>
+        <h3>잘 사는 법</h3>
+        <ul>
+          <li><strong>오전에 방문</strong>하면 품목이 가장 다양하고 신선합니다. 인기 품목은 금방 소진됩니다.</li>
+          <li><strong>제철 위주로</strong> 담으면 맛·영양·가격 모두 유리합니다. 위 제철 달력을 참고하세요.</li>
+          <li><strong>보관 계획을 세워</strong> 필요한 만큼만 구입하면 버리는 양을 줄일 수 있습니다.</li>
+          <li>채소는 <strong>흙이 묻은 채로</strong>, 잎채소는 세우면 더 오래갑니다.</li>
+        </ul>
+        <h3>안전하게 즐기기</h3>
+        <p>흙채소는 흐르는 물에 충분히 씻고, 잎채소는 식초·베이킹소다 물에 잠깐 담갔다 헹구면 좋습니다. 달걀·육류 등 축산물은 냉장 온도를 유지하며 빠르게 소비하세요.</p>
+      </div>
+    </section>
+
+    <!-- AI 채소 판별기 -->
+    <section class="section" id="ai">
+      <div class="section-inner">
+        <span class="eyebrow">AI</span>
+        <h2>🥕 채소 알아보기 — AI 판별기</h2>
+        <p class="lead">
+          채소(또는 달걀) 사진을 올리거나 웹캠에 비추면 AI가 무엇인지 알아맞히고 설명해 드려요.
+          인식 가능: 당근 · 양파 · 오이 · 호박 · 달걀 &nbsp;|&nbsp; 사진은 서버로 전송되지 않고 기기 안에서만 처리됩니다.
+        </p>
+        <div class="ai-controls">
+          <button id="btnWebcam" class="ai-btn">📷 웹캠으로 인식</button>
+          <label class="ai-btn ai-btn-outline">🖼️ 사진 업로드<input type="file" id="fileInput" accept="image/*" hidden /></label>
+          <button id="btnStop" class="ai-btn ai-btn-ghost" hidden>■ 웹캠 끄기</button>
+        </div>
+        <div id="aiStatus" class="ai-status">모델을 준비하는 중…</div>
+        <div class="ai-stage">
+          <div class="ai-preview" id="preview"><div class="ai-placeholder">여기에 사진/영상이 표시됩니다</div></div>
+          <div class="ai-result">
+            <div id="bars" class="ai-bars"></div>
+            <div id="explain" class="ai-explain empty">사진을 인식하면 여기에 설명이 표시됩니다.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 자주 묻는 질문 -->
+    <section class="section faq" id="faq">
+      <div class="section-inner" style="max-width: 760px;">
+        <span class="eyebrow">FAQ</span>
+        <h2>자주 묻는 질문</h2>
+        <p class="lead">서비스 이용에 대해 자주 묻는 질문을 모았습니다.</p>
+
+        <details>
+          <summary>판매장 정보는 정확한가요?</summary>
+          <p>더 나은 서비스를 위해 정보를 지속적으로 보완하고 있으며, 일부는 예시 데이터가 포함되어 있습니다. 방문 전 영업시간·재고는 해당 판매장에 확인하시기를 권장합니다. 잘못된 정보를 발견하시면 <a href="contact.html">연락처</a>로 알려 주세요.</p>
+        </details>
+        <details>
+          <summary>내 위치 정보는 저장되나요?</summary>
+          <p>‘내 위치’ 기능은 브라우저에서 위치를 받아 가까운 판매장을 정렬하는 데에만 사용하며, 서버로 전송하거나 저장하지 않습니다. 자세한 내용은 <a href="privacy.html">개인정보처리방침</a>을 참고하세요.</p>
+        </details>
+        <details>
+          <summary>AI 채소 판별기는 어떻게 동작하나요?</summary>
+          <p>브라우저 안에서 TensorFlow.js로 이미지를 분석합니다. 사진이나 웹캠 영상은 외부로 업로드되지 않고 여러분의 기기 안에서만 처리되므로 안심하고 사용하실 수 있습니다.</p>
+        </details>
+        <details>
+          <summary>어떤 채소를 인식할 수 있나요?</summary>
+          <p>현재 모델은 당근·양파·오이·호박·달걀 5종을 학습했습니다. 학습되지 않은 대상은 다섯 가지 중 가장 비슷한 것으로 표시될 수 있으니 참고용으로 활용하세요.</p>
+        </details>
+        <details>
+          <summary>판매장 추가·수정을 요청하고 싶어요.</summary>
+          <p><a href="contact.html">연락처</a> 페이지의 이메일로 판매장 이름·주소·취급 품목을 보내 주시면 검토 후 반영하겠습니다.</p>
+        </details>
+        <details>
+          <summary>광고는 왜 표시되나요?</summary>
+          <p>서비스 운영과 유지 비용을 충당하기 위해 Google AdSense 광고를 게재합니다. 광고와 쿠키에 대한 안내는 <a href="privacy.html">개인정보처리방침</a>에서 확인하실 수 있습니다.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-col footer-about">
+        <h4>🥬 우리동네 농산물</h4>
+        <p>신선한 지역 농산물 직매장을 지도로 찾고, 제철 정보와 보관법, AI 채소 판별기를 제공하는 생활 정보 서비스입니다.</p>
+      </div>
+      <div class="footer-col">
+        <h4>바로가기</h4>
+        <a href="index.html#map-section">판매장 지도</a>
+        <a href="index.html#guide">채소 도감</a>
+        <a href="index.html#calendar">제철 달력</a>
+        <a href="index.html#ai">AI 판별기</a>
+      </div>
+      <div class="footer-col">
+        <h4>안내</h4>
+        <a href="about.html">사이트 소개</a>
+        <a href="privacy.html">개인정보처리방침</a>
+        <a href="contact.html">연락처</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p class="disclaimer">※ 본 사이트가 제공하는 판매장·농산물 정보는 참고용이며, 실제와 다를 수 있습니다. 방문 전 확인을 권장합니다.</p>
+      <p>© 2026 우리동네 농산물. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- ── 지도 로직 ── -->
   <script>
-    // ── 판매장 데이터 (예시) ─────────────────────────────
-    // 실제 운영 데이터로 교체해서 사용하세요.
+    // 판매장 데이터 (예시) — 실제 운영 데이터로 교체해 사용하세요.
     const MARKETS = [
-      {
-        name: "가락몰 농산물 직판장",
-        address: "서울 송파구 양재대로 932",
-        lat: 37.4939, lng: 127.1105,
-        items: ["채소", "과일", "달걀"],
-        hours: "05:00 ~ 22:00",
-        phone: "02-3435-1000"
-      },
-      {
-        name: "강동 로컬푸드 직매장",
-        address: "서울 강동구 고덕로 262",
-        lat: 37.5559, lng: 127.1543,
-        items: ["채소", "달걀", "쌀"],
-        hours: "09:00 ~ 20:00",
-        phone: "02-1544-0000"
-      },
-      {
-        name: "양재 하나로마트 신선코너",
-        address: "서울 서초구 강남대로 27",
-        lat: 37.4699, lng: 127.0389,
-        items: ["채소", "과일", "달걀", "육류"],
-        hours: "09:00 ~ 21:00",
-        phone: "02-3498-1000"
-      },
-      {
-        name: "은평 로컬푸드 직매장",
-        address: "서울 은평구 통일로 1050",
-        lat: 37.6360, lng: 126.9188,
-        items: ["채소", "달걀", "잡곡"],
-        hours: "09:00 ~ 19:00",
-        phone: "02-380-0000"
-      },
-      {
-        name: "수원 팔달 농산물 직거래장터",
-        address: "경기 수원시 팔달구 정조로 800",
-        lat: 37.2820, lng: 127.0170,
-        items: ["채소", "과일", "달걀"],
-        hours: "08:00 ~ 20:00",
-        phone: "031-228-0000"
-      },
-      {
-        name: "성남 로컬푸드 직매장 (모란)",
-        address: "경기 성남시 중원구 성남대로 997",
-        lat: 37.4322, lng: 127.1290,
-        items: ["채소", "달걀", "버섯"],
-        hours: "09:00 ~ 20:00",
-        phone: "031-729-0000"
-      },
-      {
-        name: "고양 원당 농협 로컬푸드",
-        address: "경기 고양시 덕양구 화중로 104",
-        lat: 37.6540, lng: 126.8320,
-        items: ["채소", "과일", "달걀", "쌀"],
-        hours: "09:00 ~ 20:00",
-        phone: "031-968-0000"
-      },
-      {
-        name: "인천 계양 로컬푸드 직매장",
-        address: "인천 계양구 계양대로 100",
-        lat: 37.5370, lng: 126.7380,
-        items: ["채소", "달걀", "잡곡"],
-        hours: "09:00 ~ 19:00",
-        phone: "032-500-0000"
-      },
-      {
-        name: "대전 유성 로컬푸드 직매장",
-        address: "대전 유성구 유성대로 500",
-        lat: 36.3620, lng: 127.3560,
-        items: ["채소", "과일", "달걀"],
-        hours: "09:00 ~ 20:00",
-        phone: "042-600-0000"
-      },
-      {
-        name: "청주 농산물 도매시장 직판장",
-        address: "충북 청주시 흥덕구 풍산로 15",
-        lat: 36.6290, lng: 127.4200,
-        items: ["채소", "과일", "달걀", "육류"],
-        hours: "06:00 ~ 20:00",
-        phone: "043-200-0000"
-      }
+      { name: "가락몰 농산물 직판장", address: "서울 송파구 양재대로 932", lat: 37.4939, lng: 127.1105, items: ["채소", "과일", "달걀"], hours: "05:00 ~ 22:00", phone: "02-3435-1000" },
+      { name: "강동 로컬푸드 직매장", address: "서울 강동구 고덕로 262", lat: 37.5559, lng: 127.1543, items: ["채소", "달걀", "쌀"], hours: "09:00 ~ 20:00", phone: "02-1544-0000" },
+      { name: "양재 하나로마트 신선코너", address: "서울 서초구 강남대로 27", lat: 37.4699, lng: 127.0389, items: ["채소", "과일", "달걀", "육류"], hours: "09:00 ~ 21:00", phone: "02-3498-1000" },
+      { name: "은평 로컬푸드 직매장", address: "서울 은평구 통일로 1050", lat: 37.6360, lng: 126.9188, items: ["채소", "달걀", "잡곡"], hours: "09:00 ~ 19:00", phone: "02-380-0000" },
+      { name: "수원 팔달 농산물 직거래장터", address: "경기 수원시 팔달구 정조로 800", lat: 37.2820, lng: 127.0170, items: ["채소", "과일", "달걀"], hours: "08:00 ~ 20:00", phone: "031-228-0000" },
+      { name: "성남 로컬푸드 직매장 (모란)", address: "경기 성남시 중원구 성남대로 997", lat: 37.4322, lng: 127.1290, items: ["채소", "달걀", "버섯"], hours: "09:00 ~ 20:00", phone: "031-729-0000" },
+      { name: "고양 원당 농협 로컬푸드", address: "경기 고양시 덕양구 화중로 104", lat: 37.6540, lng: 126.8320, items: ["채소", "과일", "달걀", "쌀"], hours: "09:00 ~ 20:00", phone: "031-968-0000" },
+      { name: "인천 계양 로컬푸드 직매장", address: "인천 계양구 계양대로 100", lat: 37.5370, lng: 126.7380, items: ["채소", "달걀", "잡곡"], hours: "09:00 ~ 19:00", phone: "032-500-0000" },
+      { name: "대전 유성 로컬푸드 직매장", address: "대전 유성구 유성대로 500", lat: 36.3620, lng: 127.3560, items: ["채소", "과일", "달걀"], hours: "09:00 ~ 20:00", phone: "042-600-0000" },
+      { name: "청주 농산물 도매시장 직판장", address: "충북 청주시 흥덕구 풍산로 15", lat: 36.6290, lng: 127.4200, items: ["채소", "과일", "달걀", "육류"], hours: "06:00 ~ 20:00", phone: "043-200-0000" }
     ];
 
-    // ── 지도 초기화 ─────────────────────────────
     const map = L.map("map").setView([37.55, 127.0], 8);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자'
     }).addTo(map);
 
-    // 판매장 아이콘 (초록 원)
     const marketIcon = L.divIcon({
       className: "",
-      html:
-        '<div style="width:26px;height:26px;background:#2e7d32;border:3px solid #fff;' +
-        'border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;' +
-        'align-items:center;justify-content:center;font-size:13px;">🥬</div>',
-      iconSize: [26, 26],
-      iconAnchor: [13, 13],
-      popupAnchor: [0, -14]
+      html: '<div style="width:26px;height:26px;background:#2e7d32;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:13px;">🥬</div>',
+      iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14]
     });
 
-    // ── 상태 & 마커 ─────────────────────────────
-    let activeCategory = "전체";
-    let searchTerm = "";
-    let userLatLng = null;
-    const markers = new Map(); // index -> L.marker
-
+    let activeCategory = "전체", searchTerm = "", userLatLng = null;
+    const markers = new Map();
     const listEl = document.getElementById("list");
     const countEl = document.getElementById("count");
     const filtersEl = document.getElementById("filters");
     const searchEl = document.getElementById("search");
 
     function popupHtml(m) {
-      const tags = m.items
-        .map(t => '<span class="tag">' + t + "</span>")
-        .join(" ");
+      const tags = m.items.map(t => '<span class="tag">' + t + "</span>").join(" ");
       const query = encodeURIComponent(m.name + " " + m.address);
-      return (
-        '<div class="popup-title">' + m.name + "</div>" +
+      return '<div class="popup-title">' + m.name + "</div>" +
         '<div class="popup-addr">📍 ' + m.address + "</div>" +
         '<div class="popup-addr">🕒 ' + m.hours + "</div>" +
         '<div class="popup-addr">☎ ' + m.phone + "</div>" +
         '<div class="popup-tags">' + tags + "</div>" +
-        '<a class="popup-link" target="_blank" rel="noopener" ' +
-        'href="https://map.kakao.com/?q=' + query + '">길찾기 / 지도에서 보기 →</a>'
-      );
+        '<a class="popup-link" target="_blank" rel="noopener" href="https://map.kakao.com/?q=' + query + '">길찾기 / 지도에서 보기 →</a>';
     }
 
     MARKETS.forEach((m, i) => {
-      const marker = L.marker([m.lat, m.lng], { icon: marketIcon })
-        .addTo(map)
-        .bindPopup(popupHtml(m));
+      const marker = L.marker([m.lat, m.lng], { icon: marketIcon }).addTo(map).bindPopup(popupHtml(m));
       marker.on("click", () => highlightItem(i));
       markers.set(i, marker);
     });
 
-    // ── 카테고리 필터 칩 ─────────────────────────────
     const allCats = ["전체", ...new Set(MARKETS.flatMap(m => m.items))];
     allCats.forEach(cat => {
       const chip = document.createElement("button");
@@ -462,39 +369,23 @@
       filtersEl.appendChild(chip);
     });
 
-    // ── 거리 계산 (하버사인) ─────────────────────────────
     function distanceKm(a, b) {
       const R = 6371;
       const dLat = ((b.lat - a.lat) * Math.PI) / 180;
       const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-      const s =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos((a.lat * Math.PI) / 180) *
-          Math.cos((b.lat * Math.PI) / 180) *
-          Math.sin(dLng / 2) ** 2;
+      const s = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
     }
 
-    // ── 목록 렌더링 ─────────────────────────────
     function getFiltered() {
       let rows = MARKETS.map((m, i) => ({ m, i }));
-
-      if (activeCategory !== "전체") {
-        rows = rows.filter(r => r.m.items.includes(activeCategory));
-      }
+      if (activeCategory !== "전체") rows = rows.filter(r => r.m.items.includes(activeCategory));
       if (searchTerm) {
         const t = searchTerm.toLowerCase();
-        rows = rows.filter(
-          r =>
-            r.m.name.toLowerCase().includes(t) ||
-            r.m.address.toLowerCase().includes(t) ||
-            r.m.items.some(it => it.toLowerCase().includes(t))
-        );
+        rows = rows.filter(r => r.m.name.toLowerCase().includes(t) || r.m.address.toLowerCase().includes(t) || r.m.items.some(it => it.toLowerCase().includes(t)));
       }
       if (userLatLng) {
-        rows.forEach(r => {
-          r.dist = distanceKm(userLatLng, { lat: r.m.lat, lng: r.m.lng });
-        });
+        rows.forEach(r => { r.dist = distanceKm(userLatLng, { lat: r.m.lat, lng: r.m.lng }); });
         rows.sort((a, b) => a.dist - b.dist);
       }
       return rows;
@@ -504,37 +395,21 @@
       const rows = getFiltered();
       countEl.textContent = "총 " + rows.length + "곳의 판매장";
       listEl.innerHTML = "";
-
       if (rows.length === 0) {
-        listEl.innerHTML =
-          '<div style="padding:24px;text-align:center;color:#6b7770;">' +
-          "검색 결과가 없습니다.</div>";
+        listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#6b7770;">검색 결과가 없습니다.</div>';
         return;
       }
-
       rows.forEach(({ m, i, dist }) => {
         const div = document.createElement("div");
         div.className = "item";
         div.dataset.idx = i;
-        const tags = m.items
-          .map(t => '<span class="tag">' + t + "</span>")
-          .join(" ");
-        const distStr =
-          dist != null
-            ? '<span style="color:#2e7d32;font-weight:600;"> · ' +
-              dist.toFixed(1) +
-              "km</span>"
-            : "";
-        div.innerHTML =
-          "<h3>" + m.name + "</h3>" +
+        const tags = m.items.map(t => '<span class="tag">' + t + "</span>").join(" ");
+        const distStr = dist != null ? '<span style="color:#2e7d32;font-weight:600;"> · ' + dist.toFixed(1) + "km</span>" : "";
+        div.innerHTML = "<h3>" + m.name + "</h3>" +
           '<div class="addr">📍 ' + m.address + distStr + "</div>" +
           '<div class="tags">' + tags + "</div>" +
           '<div class="meta">🕒 ' + m.hours + " · ☎ " + m.phone + "</div>";
-        div.onclick = () => {
-          map.setView([m.lat, m.lng], 14, { animate: true });
-          markers.get(i).openPopup();
-          highlightItem(i);
-        };
+        div.onclick = () => { map.setView([m.lat, m.lng], 14, { animate: true }); markers.get(i).openPopup(); highlightItem(i); };
         listEl.appendChild(div);
       });
     }
@@ -542,36 +417,18 @@
     function highlightItem(idx) {
       [...listEl.children].forEach(c => c.classList.remove("active"));
       const el = listEl.querySelector('[data-idx="' + idx + '"]');
-      if (el) {
-        el.classList.add("active");
-        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      }
+      if (el) { el.classList.add("active"); el.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
     }
 
-    // ── 검색 입력 ─────────────────────────────
-    searchEl.addEventListener("input", e => {
-      searchTerm = e.target.value.trim();
-      render();
-    });
+    searchEl.addEventListener("input", e => { searchTerm = e.target.value.trim(); render(); });
 
-    // ── 내 위치 ─────────────────────────────
     document.getElementById("locateBtn").onclick = () => {
-      if (!navigator.geolocation) {
-        alert("이 브라우저에서는 위치 기능을 지원하지 않습니다.");
-        return;
-      }
+      if (!navigator.geolocation) { alert("이 브라우저에서는 위치 기능을 지원하지 않습니다."); return; }
       navigator.geolocation.getCurrentPosition(
         pos => {
           userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          L.circleMarker([userLatLng.lat, userLatLng.lng], {
-            radius: 9,
-            color: "#1565c0",
-            fillColor: "#1e88e5",
-            fillOpacity: 0.9
-          })
-            .addTo(map)
-            .bindPopup("현재 내 위치")
-            .openPopup();
+          L.circleMarker([userLatLng.lat, userLatLng.lng], { radius: 9, color: "#1565c0", fillColor: "#1e88e5", fillOpacity: 0.9 })
+            .addTo(map).bindPopup("현재 내 위치").openPopup();
           map.setView([userLatLng.lat, userLatLng.lng], 11);
           render();
         },
@@ -579,7 +436,6 @@
       );
     };
 
-    // 첫 렌더
     render();
   </script>
 
@@ -587,34 +443,12 @@
   <script>
     (function () {
       const MODEL_URL = "https://teachablemachine.withgoogle.com/models/2EssRstws/";
-
-      // 채소별 설명
       const INFO = {
-        "당근": {
-          emoji: "🥕", title: "당근 (Carrot)",
-          desc: "대표적인 뿌리채소예요. 주황빛을 내는 베타카로틴(비타민A 전구체)이 풍부해 눈 건강과 면역력에 도움을 줍니다. 생으로 아삭하게, 볶음·국·주스 등 다양하게 즐길 수 있어요.",
-          tips: ["제철: 가을~겨울", "보관: 흙을 털고 신문지에 싸 냉장", "기름과 함께 조리하면 베타카로틴 흡수가 좋아져요"]
-        },
-        "양파": {
-          emoji: "🧅", title: "양파 (Onion)",
-          desc: "특유의 매운맛과 향을 내는 알리신·퀘르세틴이 풍부해 항산화와 혈액순환에 도움을 줍니다. 익히면 매운맛이 사라지고 단맛이 강해져 거의 모든 요리의 기본 재료로 쓰여요.",
-          tips: ["제철: 봄~초여름", "보관: 서늘하고 건조한 곳에 망째 매달아 두기", "자른 것은 밀폐해 냉장"]
-        },
-        "오이": {
-          emoji: "🥒", title: "오이 (Cucumber)",
-          desc: "수분이 약 95%로 시원하고 칼로리가 낮아 여름철 수분 보충에 좋아요. 칼륨이 많아 붓기 완화에도 도움을 주며 생채·냉국·피클로 즐겨 먹습니다.",
-          tips: ["제철: 여름", "보관: 물기를 닦아 키친타월에 싸 냉장", "꼭지가 마르지 않은 것이 신선해요"]
-        },
-        "호박": {
-          emoji: "🎃", title: "호박 (Squash / Pumpkin)",
-          desc: "베타카로틴과 식이섬유가 풍부해요. 애호박은 부드럽고 담백해 볶음·전에, 단호박·늙은호박은 단맛이 강해 죽·찜에 잘 어울립니다. 소화가 잘돼 이유식·회복식으로도 좋아요.",
-          tips: ["제철: 여름(애호박) / 가을(단·늙은호박)", "보관: 통째로는 서늘한 실온, 자른 것은 씨 빼고 냉장", "껍질째 조리하면 영양 손실이 적어요"]
-        },
-        "달걀": {
-          emoji: "🥚", title: "달걀 (Egg)",
-          desc: "채소는 아니지만 판매장에서 함께 파는 대표 신선식품이에요. 필수아미노산을 고루 갖춘 '완전식품'으로 단백질이 풍부하고, 노른자에는 비타민·무기질이 많이 들어 있습니다.",
-          tips: ["보관: 뾰족한 쪽을 아래로 하여 냉장 안쪽에", "신선도: 물에 넣어 가라앉으면 신선한 달걀", "※ 엄밀히는 채소가 아닌 축산물이에요"]
-        }
+        "당근": { emoji: "🥕", title: "당근 (Carrot)", desc: "대표적인 뿌리채소예요. 주황빛을 내는 베타카로틴(비타민A 전구체)이 풍부해 눈 건강과 면역력에 도움을 줍니다. 생으로 아삭하게, 볶음·국·주스 등 다양하게 즐길 수 있어요.", tips: ["제철: 가을~겨울", "보관: 흙을 털고 신문지에 싸 냉장", "기름과 함께 조리하면 베타카로틴 흡수가 좋아져요"] },
+        "양파": { emoji: "🧅", title: "양파 (Onion)", desc: "특유의 매운맛과 향을 내는 알리신·퀘르세틴이 풍부해 항산화와 혈액순환에 도움을 줍니다. 익히면 매운맛이 사라지고 단맛이 강해져 거의 모든 요리의 기본 재료로 쓰여요.", tips: ["제철: 봄~초여름", "보관: 서늘하고 건조한 곳에 망째 매달아 두기", "자른 것은 밀폐해 냉장"] },
+        "오이": { emoji: "🥒", title: "오이 (Cucumber)", desc: "수분이 약 95%로 시원하고 칼로리가 낮아 여름철 수분 보충에 좋아요. 칼륨이 많아 붓기 완화에도 도움을 주며 생채·냉국·피클로 즐겨 먹습니다.", tips: ["제철: 여름", "보관: 물기를 닦아 키친타월에 싸 냉장", "꼭지가 마르지 않은 것이 신선해요"] },
+        "호박": { emoji: "🎃", title: "호박 (Squash / Pumpkin)", desc: "베타카로틴과 식이섬유가 풍부해요. 애호박은 부드럽고 담백해 볶음·전에, 단호박·늙은호박은 단맛이 강해 죽·찜에 잘 어울립니다. 소화가 잘돼 이유식·회복식으로도 좋아요.", tips: ["제철: 여름(애호박) / 가을(단·늙은호박)", "보관: 통째로는 서늘한 실온, 자른 것은 씨 빼고 냉장", "껍질째 조리하면 영양 손실이 적어요"] },
+        "달걀": { emoji: "🥚", title: "달걀 (Egg)", desc: "채소는 아니지만 판매장에서 함께 파는 대표 신선식품이에요. 필수아미노산을 고루 갖춘 '완전식품'으로 단백질이 풍부하고, 노른자에는 비타민·무기질이 많이 들어 있습니다.", tips: ["보관: 뾰족한 쪽을 아래로 하여 냉장 안쪽에", "신선도: 물에 넣어 가라앉으면 신선한 달걀", "※ 엄밀히는 채소가 아닌 축산물이에요"] }
       };
 
       const statusEl = document.getElementById("aiStatus");
@@ -624,7 +458,6 @@
       const btnWebcam = document.getElementById("btnWebcam");
       const btnStop = document.getElementById("btnStop");
       const fileInput = document.getElementById("fileInput");
-
       let model = null, webcam = null, webcamRunning = false;
 
       async function ensureModel() {
@@ -634,32 +467,27 @@
         statusEl.textContent = "준비 완료! 사진을 올리거나 웹캠을 켜 보세요.";
         return model;
       }
-
       function renderBars(preds) {
         barsEl.innerHTML = "";
         preds.forEach(function (p, idx) {
           const pct = Math.round(p.probability * 100);
           const row = document.createElement("div");
           row.className = "bar-row" + (idx === 0 ? " top" : "");
-          row.innerHTML =
-            '<div class="bar-label"><span>' + p.className + "</span><span>" + pct + "%</span></div>" +
+          row.innerHTML = '<div class="bar-label"><span>' + p.className + "</span><span>" + pct + "%</span></div>" +
             '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>';
           barsEl.appendChild(row);
         });
       }
-
       function renderExplain(top) {
         const info = INFO[top.className];
         if (!info) return;
         const conf = Math.round(top.probability * 100);
         explainEl.className = "ai-explain";
-        explainEl.innerHTML =
-          "<h3>" + info.emoji + " " + info.title +
+        explainEl.innerHTML = "<h3>" + info.emoji + " " + info.title +
           ' <span style="font-size:13px;color:#f57c00;font-weight:600;">(' + conf + "% 확신)</span></h3>" +
           "<p>" + info.desc + "</p>" +
           "<ul>" + info.tips.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
       }
-
       async function classify(source) {
         const m = await ensureModel();
         const preds = await m.predict(source);
@@ -667,8 +495,6 @@
         renderBars(preds);
         renderExplain(preds[0]);
       }
-
-      // 사진 업로드
       fileInput.addEventListener("change", function (e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -678,13 +504,10 @@
         img.onload = async function () {
           previewEl.innerHTML = "";
           previewEl.appendChild(img);
-          try { await classify(img); }
-          catch (err) { statusEl.textContent = "인식 중 오류가 발생했어요. 다시 시도해 주세요."; }
+          try { await classify(img); } catch (err) { statusEl.textContent = "인식 중 오류가 발생했어요. 다시 시도해 주세요."; }
         };
         img.src = URL.createObjectURL(file);
       });
-
-      // 웹캠 실시간 인식
       btnWebcam.addEventListener("click", async function () {
         try {
           await ensureModel();
@@ -698,34 +521,25 @@
           btnStop.hidden = false;
           statusEl.textContent = "웹캠으로 실시간 인식 중… 채소를 카메라에 비춰 보세요.";
           loop();
-        } catch (err) {
-          statusEl.textContent = "웹캠을 사용할 수 없어요. 카메라 권한을 확인해 주세요.";
-        }
+        } catch (err) { statusEl.textContent = "웹캠을 사용할 수 없어요. 카메라 권한을 확인해 주세요."; }
       });
-
       async function loop() {
         if (!webcamRunning) return;
         webcam.update();
         try { await classify(webcam.canvas); } catch (e) {}
         window.requestAnimationFrame(loop);
       }
-
       function stopWebcam() {
         webcamRunning = false;
         btnStop.hidden = true;
         if (webcam) { try { webcam.stop(); } catch (e) {} webcam = null; }
       }
-
       btnStop.addEventListener("click", function () {
         stopWebcam();
         previewEl.innerHTML = '<div class="ai-placeholder">여기에 사진/영상이 표시됩니다</div>';
         statusEl.textContent = "웹캠을 껐어요. 다시 켜거나 사진을 올려 보세요.";
       });
-
-      // 페이지 로드 시 모델 미리 준비
-      ensureModel().catch(function () {
-        statusEl.textContent = "모델을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.";
-      });
+      ensureModel().catch(function () { statusEl.textContent = "모델을 불러오지 못했어요. 인터넷 연결을 확인해 주세요."; });
     })();
   </script>
 </body>
