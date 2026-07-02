@@ -18,6 +18,10 @@
     crossorigin=""
   ></script>
 
+  <!-- Teachable Machine 채소 분류 모델 (TensorFlow.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
   <style>
     :root {
       --green: #2e7d32;
@@ -29,12 +33,13 @@
       --border: #e2e8dd;
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
+    html, body { margin: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic",
         "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
       color: var(--text);
       background: var(--bg);
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
@@ -50,9 +55,9 @@
     header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
 
     .layout {
-      flex: 1;
+      height: 72vh;
+      min-height: 420px;
       display: flex;
-      min-height: 0;
     }
 
     /* 사이드바 (목록 + 필터) */
@@ -163,6 +168,60 @@
       font-weight: 600;
     }
 
+    /* ── AI 채소 판별 섹션 ── */
+    .ai-section {
+      background: linear-gradient(180deg, #f0f6ee 0%, #e6f0e2 100%);
+      border-top: 3px solid var(--green);
+      padding: 34px 20px 52px;
+    }
+    .ai-inner { max-width: 960px; margin: 0 auto; }
+    .ai-section h2 { margin: 0 0 6px; font-size: 22px; color: var(--green-dark); }
+    .ai-desc { margin: 0 0 18px; color: #4a5a4a; font-size: 14px; line-height: 1.6; }
+    .ai-desc small { color: var(--muted); }
+
+    .ai-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .ai-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--green); color: #fff; border: none;
+      padding: 11px 18px; border-radius: 10px; font-size: 14px;
+      font-weight: 600; cursor: pointer;
+    }
+    .ai-btn:hover { background: var(--green-dark); }
+    .ai-btn-outline { background: #fff; color: var(--green); border: 1px solid var(--green); }
+    .ai-btn-outline:hover { background: #eef6ee; }
+    .ai-btn-ghost { background: #fff; color: #b00020; border: 1px solid #e0b4b4; }
+
+    .ai-status { font-size: 13px; color: var(--muted); margin-bottom: 16px; min-height: 18px; }
+
+    .ai-stage { display: flex; gap: 20px; flex-wrap: wrap; }
+    .ai-preview {
+      flex: 1 1 320px; min-width: 260px; max-width: 380px; aspect-ratio: 1 / 1;
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .ai-placeholder { color: #9aa89a; font-size: 14px; text-align: center; padding: 20px; }
+    .ai-img, .ai-preview canvas, .ai-preview video {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+
+    .ai-result { flex: 1 1 320px; min-width: 260px; }
+    .ai-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+    .bar-row { font-size: 13px; }
+    .bar-label { display: flex; justify-content: space-between; margin-bottom: 3px; color: #3a463a; }
+    .bar-track { background: #dfe7db; border-radius: 6px; height: 12px; overflow: hidden; }
+    .bar-fill { background: var(--green); height: 100%; width: 0; transition: width 0.25s; border-radius: 6px; }
+    .bar-row.top .bar-fill { background: #f57c00; }
+    .bar-row.top .bar-label { font-weight: 700; color: var(--green-dark); }
+
+    .ai-explain {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: 16px 18px; min-height: 60px;
+    }
+    .ai-explain.empty { color: #9aa89a; font-size: 14px; }
+    .ai-explain h3 { margin: 0 0 8px; font-size: 18px; color: var(--green-dark); }
+    .ai-explain p { margin: 0 0 10px; font-size: 14px; line-height: 1.65; color: #3a463a; }
+    .ai-explain ul { margin: 0; padding-left: 18px; font-size: 13px; color: #4a5a4a; line-height: 1.7; }
+
     @media (max-width: 720px) {
       .layout { flex-direction: column; }
       .sidebar { width: 100%; max-width: 100%; height: 45%; border-right: none; border-bottom: 1px solid var(--border); }
@@ -194,6 +253,38 @@
 
     <div id="map"></div>
   </div>
+
+  <!-- ── AI 채소 판별 섹션 ── -->
+  <section class="ai-section" id="ai">
+    <div class="ai-inner">
+      <h2>🥕 채소 알아보기 — AI 판별기</h2>
+      <p class="ai-desc">
+        채소(또는 달걀) 사진을 올리거나 웹캠에 비추면 AI가 무엇인지 알아맞히고 설명해 드려요.<br />
+        <small>인식 가능: 당근 · 양파 · 오이 · 호박 · 달걀 &nbsp;|&nbsp; Teachable Machine 모델 사용</small>
+      </p>
+
+      <div class="ai-controls">
+        <button id="btnWebcam" class="ai-btn">📷 웹캠으로 인식</button>
+        <label class="ai-btn ai-btn-outline">
+          🖼️ 사진 업로드
+          <input type="file" id="fileInput" accept="image/*" hidden />
+        </label>
+        <button id="btnStop" class="ai-btn ai-btn-ghost" hidden>■ 웹캠 끄기</button>
+      </div>
+
+      <div id="aiStatus" class="ai-status">모델을 준비하는 중…</div>
+
+      <div class="ai-stage">
+        <div class="ai-preview" id="preview">
+          <div class="ai-placeholder">여기에 사진/영상이 표시됩니다</div>
+        </div>
+        <div class="ai-result">
+          <div id="bars" class="ai-bars"></div>
+          <div id="explain" class="ai-explain empty">사진을 인식하면 여기에 설명이 표시됩니다.</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <script>
     // ── 판매장 데이터 (예시) ─────────────────────────────
@@ -470,6 +561,152 @@
 
     // 첫 렌더
     render();
+  </script>
+
+  <!-- ── AI 채소 판별 로직 ── -->
+  <script>
+    (function () {
+      const MODEL_URL = "https://teachablemachine.withgoogle.com/models/2EssRstws/";
+
+      // 채소별 설명
+      const INFO = {
+        "당근": {
+          emoji: "🥕", title: "당근 (Carrot)",
+          desc: "대표적인 뿌리채소예요. 주황빛을 내는 베타카로틴(비타민A 전구체)이 풍부해 눈 건강과 면역력에 도움을 줍니다. 생으로 아삭하게, 볶음·국·주스 등 다양하게 즐길 수 있어요.",
+          tips: ["제철: 가을~겨울", "보관: 흙을 털고 신문지에 싸 냉장", "기름과 함께 조리하면 베타카로틴 흡수가 좋아져요"]
+        },
+        "양파": {
+          emoji: "🧅", title: "양파 (Onion)",
+          desc: "특유의 매운맛과 향을 내는 알리신·퀘르세틴이 풍부해 항산화와 혈액순환에 도움을 줍니다. 익히면 매운맛이 사라지고 단맛이 강해져 거의 모든 요리의 기본 재료로 쓰여요.",
+          tips: ["제철: 봄~초여름", "보관: 서늘하고 건조한 곳에 망째 매달아 두기", "자른 것은 밀폐해 냉장"]
+        },
+        "오이": {
+          emoji: "🥒", title: "오이 (Cucumber)",
+          desc: "수분이 약 95%로 시원하고 칼로리가 낮아 여름철 수분 보충에 좋아요. 칼륨이 많아 붓기 완화에도 도움을 주며 생채·냉국·피클로 즐겨 먹습니다.",
+          tips: ["제철: 여름", "보관: 물기를 닦아 키친타월에 싸 냉장", "꼭지가 마르지 않은 것이 신선해요"]
+        },
+        "호박": {
+          emoji: "🎃", title: "호박 (Squash / Pumpkin)",
+          desc: "베타카로틴과 식이섬유가 풍부해요. 애호박은 부드럽고 담백해 볶음·전에, 단호박·늙은호박은 단맛이 강해 죽·찜에 잘 어울립니다. 소화가 잘돼 이유식·회복식으로도 좋아요.",
+          tips: ["제철: 여름(애호박) / 가을(단·늙은호박)", "보관: 통째로는 서늘한 실온, 자른 것은 씨 빼고 냉장", "껍질째 조리하면 영양 손실이 적어요"]
+        },
+        "달걀": {
+          emoji: "🥚", title: "달걀 (Egg)",
+          desc: "채소는 아니지만 판매장에서 함께 파는 대표 신선식품이에요. 필수아미노산을 고루 갖춘 '완전식품'으로 단백질이 풍부하고, 노른자에는 비타민·무기질이 많이 들어 있습니다.",
+          tips: ["보관: 뾰족한 쪽을 아래로 하여 냉장 안쪽에", "신선도: 물에 넣어 가라앉으면 신선한 달걀", "※ 엄밀히는 채소가 아닌 축산물이에요"]
+        }
+      };
+
+      const statusEl = document.getElementById("aiStatus");
+      const previewEl = document.getElementById("preview");
+      const barsEl = document.getElementById("bars");
+      const explainEl = document.getElementById("explain");
+      const btnWebcam = document.getElementById("btnWebcam");
+      const btnStop = document.getElementById("btnStop");
+      const fileInput = document.getElementById("fileInput");
+
+      let model = null, webcam = null, webcamRunning = false;
+
+      async function ensureModel() {
+        if (model) return model;
+        statusEl.textContent = "AI 모델을 불러오는 중…";
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        statusEl.textContent = "준비 완료! 사진을 올리거나 웹캠을 켜 보세요.";
+        return model;
+      }
+
+      function renderBars(preds) {
+        barsEl.innerHTML = "";
+        preds.forEach(function (p, idx) {
+          const pct = Math.round(p.probability * 100);
+          const row = document.createElement("div");
+          row.className = "bar-row" + (idx === 0 ? " top" : "");
+          row.innerHTML =
+            '<div class="bar-label"><span>' + p.className + "</span><span>" + pct + "%</span></div>" +
+            '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>';
+          barsEl.appendChild(row);
+        });
+      }
+
+      function renderExplain(top) {
+        const info = INFO[top.className];
+        if (!info) return;
+        const conf = Math.round(top.probability * 100);
+        explainEl.className = "ai-explain";
+        explainEl.innerHTML =
+          "<h3>" + info.emoji + " " + info.title +
+          ' <span style="font-size:13px;color:#f57c00;font-weight:600;">(' + conf + "% 확신)</span></h3>" +
+          "<p>" + info.desc + "</p>" +
+          "<ul>" + info.tips.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
+      }
+
+      async function classify(source) {
+        const m = await ensureModel();
+        const preds = await m.predict(source);
+        preds.sort(function (a, b) { return b.probability - a.probability; });
+        renderBars(preds);
+        renderExplain(preds[0]);
+      }
+
+      // 사진 업로드
+      fileInput.addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        stopWebcam();
+        const img = new Image();
+        img.className = "ai-img";
+        img.onload = async function () {
+          previewEl.innerHTML = "";
+          previewEl.appendChild(img);
+          try { await classify(img); }
+          catch (err) { statusEl.textContent = "인식 중 오류가 발생했어요. 다시 시도해 주세요."; }
+        };
+        img.src = URL.createObjectURL(file);
+      });
+
+      // 웹캠 실시간 인식
+      btnWebcam.addEventListener("click", async function () {
+        try {
+          await ensureModel();
+          if (webcamRunning) return;
+          webcam = new tmImage.Webcam(400, 400, true);
+          await webcam.setup();
+          await webcam.play();
+          webcamRunning = true;
+          previewEl.innerHTML = "";
+          previewEl.appendChild(webcam.canvas);
+          btnStop.hidden = false;
+          statusEl.textContent = "웹캠으로 실시간 인식 중… 채소를 카메라에 비춰 보세요.";
+          loop();
+        } catch (err) {
+          statusEl.textContent = "웹캠을 사용할 수 없어요. 카메라 권한을 확인해 주세요.";
+        }
+      });
+
+      async function loop() {
+        if (!webcamRunning) return;
+        webcam.update();
+        try { await classify(webcam.canvas); } catch (e) {}
+        window.requestAnimationFrame(loop);
+      }
+
+      function stopWebcam() {
+        webcamRunning = false;
+        btnStop.hidden = true;
+        if (webcam) { try { webcam.stop(); } catch (e) {} webcam = null; }
+      }
+
+      btnStop.addEventListener("click", function () {
+        stopWebcam();
+        previewEl.innerHTML = '<div class="ai-placeholder">여기에 사진/영상이 표시됩니다</div>';
+        statusEl.textContent = "웹캠을 껐어요. 다시 켜거나 사진을 올려 보세요.";
+      });
+
+      // 페이지 로드 시 모델 미리 준비
+      ensureModel().catch(function () {
+        statusEl.textContent = "모델을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.";
+      });
+    })();
   </script>
 </body>
 </html>
