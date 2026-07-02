@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>우리동네 농산물 판매장</title>
 
+  <!-- Google AdSense (계정 인증 + 자동 광고) -->
+  <meta name="google-adsense-account" content="ca-pub-1496626069535256" />
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1496626069535256"
+     crossorigin="anonymous"></script>
+
   <!-- Leaflet (OpenStreetMap) - API 키 불필요 -->
   <link
     rel="stylesheet"
@@ -253,6 +258,21 @@
 
     <div id="map"></div>
   </div>
+
+  <!-- ── 광고 영역 (수동 광고 단위) ──
+       AdSense 대시보드에서 '디스플레이 광고' 단위를 만든 뒤, 아래 data-ad-slot 값을
+       발급받은 슬롯 ID로 바꾸고 이 주석(<!-- , -->)을 제거하면 광고가 표시됩니다.
+       ※ 자동 광고를 켠 경우에는 이 블록 없이도 Google이 알아서 광고를 배치합니다.
+  <div style="max-width: 960px; margin: 0 auto; padding: 16px 20px; text-align: center;">
+    <ins class="adsbygoogle"
+         style="display:block"
+         data-ad-client="ca-pub-1496626069535256"
+         data-ad-slot="여기에_광고단위_슬롯ID"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+  -->
 
   <!-- ── AI 채소 판별 섹션 ── -->
   <section class="ai-section" id="ai">
